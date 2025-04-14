@@ -1,8 +1,132 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, FlatList, StatusBar } from 'react-native';
 import bible from "../../assets/bible/en_kjv.json";
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import FadingHeaderScrollView from '@/components/FadingHeaderScroll';
 
 const Bible = () => {
+    const colorScheme = useColorScheme();
+    const colors = Colors[colorScheme];
+
+    const styles = StyleSheet.create({
+        safeArea: {
+            flex: 1,
+            backgroundColor: colors.background,
+            paddingTop: 20,
+        },
+        container: {
+            flex: 1,
+            backgroundColor: colors.background,
+        },
+        header: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 16,
+            paddingHorizontal: 1,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.icon, // using icon color for borders
+        },
+        title: {
+            fontSize: 24,
+            fontWeight: 'bold',
+            color: colors.text,
+            flex: 1,
+            textAlign: 'center',
+        },
+        backButton: {
+            padding: 8,
+            position: 'absolute',
+            left: 16,
+            zIndex: 1,
+        },
+        backButtonText: {
+            color: colors.tint,
+            fontSize: 16,
+        },
+        list: {
+            paddingVertical: 8,
+            paddingHorizontal: 16,
+        },
+        item: {
+            padding: 20,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.icon,
+        },
+        itemText: {
+            fontSize: 18,
+            color: colors.text,
+        },
+        headerText: {
+            fontSize: 20,
+            fontWeight: 'bold',
+            color: colors.text,
+            textAlign: 'center',
+            padding: 16,
+        },
+        chapterGrid: {
+            padding: 16,
+            alignItems: 'center',
+        },
+        chapterItem: {
+            width: '22%',
+            aspectRatio: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            margin: '1.5%',
+            backgroundColor: colors.tint + '20', // Using tint color with 20% opacity
+            borderRadius: 8,
+        },
+        chapterText: {
+            fontSize: 18,
+            color: colors.text,
+        },
+        verseContainer: {
+            padding: 16,
+        },
+        verseWrapper: {
+            flexDirection: 'row',
+            marginBottom: 16,
+        },
+        verseNumber: {
+            fontSize: 14,
+            fontWeight: 'bold',
+            color: colors.tint,
+            marginRight: 8,
+            width: 24,
+            textAlign: 'right',
+        },
+        verseText: {
+            fontSize: 18,
+            color: colors.text,
+            flex: 1,
+            lineHeight: 26,
+        },
+        navigationButtonsContainer: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginTop: 30,
+            marginBottom: 40,
+            paddingHorizontal: 10,
+        },
+        navigationButton: {
+            backgroundColor: colors.tint + '20',
+            padding: 14,
+            borderRadius: 8,
+            minWidth: 130,
+            alignItems: 'center',
+        },
+        navigationButtonText: {
+            color: colors.text,
+            fontSize: 16,
+            fontWeight: '500',
+        },
+        disabledButton: {
+            backgroundColor: colors.icon + '40',
+            opacity: 0.5,
+        }
+    });
+
     // Type assertion for Bible structure
     const typedBible = bible as Array<{
         abbrev: string,
@@ -132,50 +256,61 @@ const Bible = () => {
         const isFirstChapter = selectedChapter <= 0;
         const isFirstBook = selectedBook <= 0;
 
+        // Create data array with verse numbers and text
+        const versesData = verses.map((verse, index) => ({
+            verse: verse,
+            number: index + 1,
+        }));
+
         return (
             <View style={styles.container}>
                 <Text style={styles.headerText}>
                     {bookNames[selectedBook]} {selectedChapter + 1}
                 </Text>
-                <ScrollView style={styles.verseContainer}>
-                    {verses.map((verse, index) => (
-                        <View key={index} style={styles.verseWrapper}>
-                            <Text style={styles.verseNumber}>{index + 1}</Text>
-                            <Text style={styles.verseText}>{verse}</Text>
+                <FlatList
+                    data={versesData}
+                    renderItem={({ item }) => (
+                        <View style={styles.verseWrapper}>
+                            <Text style={styles.verseNumber}>{item.number}</Text>
+                            <Text style={styles.verseText}>{item.verse}</Text>
                         </View>
-                    ))}
+                    )}
+                    keyExtractor={(item, index) => index.toString()}
+                    contentContainerStyle={styles.verseContainer}
+                    ListFooterComponent={() => (
+                        <View style={styles.navigationButtonsContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.navigationButton,
+                                    (isFirstChapter && isFirstBook) ? styles.disabledButton : {}
+                                ]}
+                                onPress={handlePreviousChapter}
+                                disabled={isFirstChapter && isFirstBook}
+                            >
+                                <Text style={styles.navigationButtonText}>
+                                    {isFirstChapter && !isFirstBook ? `← ${bookNames[selectedBook - 1]}` : '← Previous'}
+                                </Text>
+                            </TouchableOpacity>
 
-                    <View style={styles.navigationButtonsContainer}>
-                        <TouchableOpacity
-                            style={[
-                                styles.navigationButton,
-                                (isFirstChapter && isFirstBook) ? styles.disabledButton : {}
-                            ]}
-                            onPress={handlePreviousChapter}
-                            disabled={isFirstChapter && isFirstBook}
-                        >
-                            <Text style={styles.navigationButtonText}>
-                                {isFirstChapter && !isFirstBook ? `← ${bookNames[selectedBook - 1]}` : '← Previous'}
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.navigationButton,
-                                (isLastChapter && isLastBook) ? styles.disabledButton : {}
-                            ]}
-                            onPress={handleNextChapter}
-                            disabled={isLastChapter && isLastBook}
-                        >
-                            <Text style={styles.navigationButtonText}>
-                                {isLastChapter && !isLastBook ? `${bookNames[selectedBook + 1]} →` : 'Next →'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </ScrollView>
+                            <TouchableOpacity
+                                style={[
+                                    styles.navigationButton,
+                                    (isLastChapter && isLastBook) ? styles.disabledButton : {}
+                                ]}
+                                onPress={handleNextChapter}
+                                disabled={isLastChapter && isLastBook}
+                            >
+                                <Text style={styles.navigationButtonText}>
+                                    {isLastChapter && !isLastBook ? `${bookNames[selectedBook + 1]} →` : 'Next →'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                />
             </View>
         );
     };
+
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -198,121 +333,5 @@ const Bible = () => {
     );
 };
 
-const styles = StyleSheet.create({
-    safeArea: {
-        flex: 1,
-        backgroundColor: '#141414',
-        paddingTop: 20,
-    },
-    container: {
-        flex: 1,
-        backgroundColor: '#141414',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
-        flex: 1,
-        textAlign: 'center',
-    },
-    backButton: {
-        padding: 8,
-        position: 'absolute',
-        left: 16,
-        zIndex: 1,
-    },
-    backButtonText: {
-        color: '#6495ED',
-        fontSize: 16,
-    },
-    list: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-    },
-    item: {
-        padding: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    itemText: {
-        fontSize: 18,
-        color: '#fff',
-    },
-    headerText: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#fff',
-        textAlign: 'center',
-        padding: 16,
-    },
-    chapterGrid: {
-        padding: 16,
-        alignItems: 'center',
-    },
-    chapterItem: {
-        width: '22%',
-        aspectRatio: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        margin: '1.5%',
-        backgroundColor: '#222',
-        borderRadius: 8,
-    },
-    chapterText: {
-        fontSize: 18,
-        color: '#fff',
-    },
-    verseContainer: {
-        padding: 16,
-    },
-    verseWrapper: {
-        flexDirection: 'row',
-        marginBottom: 16,
-    },
-    verseNumber: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: '#6495ED',
-        marginRight: 8,
-        width: 24,
-        textAlign: 'right',
-    },
-    verseText: {
-        fontSize: 18,
-        color: '#fff',
-        flex: 1,
-        lineHeight: 26,
-    },
-    navigationButtonsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 30,
-        marginBottom: 40,
-        paddingHorizontal: 10,
-    },
-    navigationButton: {
-        backgroundColor: '#2E3F5E',
-        padding: 14,
-        borderRadius: 8,
-        minWidth: 130,
-        alignItems: 'center',
-    },
-    navigationButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '500',
-    },
-    disabledButton: {
-        backgroundColor: '#1F2937',
-        opacity: 0.5,
-    }
-});
 
 export default Bible;

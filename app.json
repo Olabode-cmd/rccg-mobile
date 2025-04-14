@@ -4,16 +4,22 @@
     "slug": "rccg-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/rccg.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/rccg.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000033",
+      "imageResizeMode": "contain"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/rccg.png",
         "backgroundColor": "#ffffff"
       }
     },
@@ -33,7 +39,12 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-sqlite"
+      [
+        "expo-sqlite",
+        {
+          "permissions": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
