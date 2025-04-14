@@ -127,7 +127,7 @@ const Notes = () => {
 
     const renderNoteItem = ({ item }: { item: Note }) => {
         const noteTitle = item.title.trim() ? item.title : 'Untitled Note';
-        const notePreview = item.content.length > 50 ? `${item.content.substring(0, 50)}...` : item.content;
+        const notePreview = item.content.length > 30 ? `${item.content.substring(0, 30)}...` : item.content;
         const createdDate = new Date(item.created_at).toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric'
@@ -135,36 +135,33 @@ const Notes = () => {
 
         return (
             <TouchableOpacity
-                style={[
-                    styles.noteItem,
-                    { backgroundColor: colors.card }
-                ]}
+                style={styles.noteItem}
                 onPress={() => openEditNoteModal(item)}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
             >
                 <View style={styles.noteContent}>
-                    <Text style={[styles.noteTitle, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
-                        {noteTitle}
-                    </Text>
-                    <View style={styles.noteDetailsRow}>
-                        <Text style={[styles.dateText, { color: colors.text + '99' }]}>
-                            {createdDate}
+                    <View style={{ display: 'flex', flexDirection: 'column', gap: 4}}>
+                        <Text style={styles.noteTitle} numberOfLines={1} ellipsizeMode="tail">
+                            {noteTitle}
+                        </Text>
+
+                        <View style={styles.dateContainer}>
+                            <Feather name="calendar" size={12} color="#7B8794" />
+                            <Text style={styles.dateText}>{createdDate}</Text>
+                        </View>
+                    </View>
+                    <View style={styles.noteDetailsContainer}>
+                        <Text style={styles.notePreview} numberOfLines={1} ellipsizeMode="tail">
+                            {notePreview}
                         </Text>
                     </View>
-                    <Text
-                        style={[styles.notePreview, { color: colors.text + 'CC' }]}
-                        numberOfLines={2}
-                        ellipsizeMode="tail"
-                    >
-                        {notePreview}
-                    </Text>
                 </View>
                 <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={() => deleteNote(item.id)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 >
-                    <Feather name="trash-2" size={20} color="#FF6B6B" />
+                    <Feather name="trash-2" size={18} color="#FF6B6B" />
                 </TouchableOpacity>
             </TouchableOpacity>
         );
@@ -264,6 +261,7 @@ const styles = StyleSheet.create({
         fontSize: 28,
         fontWeight: 'bold',
         marginBottom: 20,
+        marginTop: 12,
     },
     notesList: {
         flexGrow: 1,
@@ -292,37 +290,53 @@ const styles = StyleSheet.create({
     // },
     noteItem: {
         flexDirection: 'row',
-        borderRadius: 10,
-        padding: 16,
-        borderColor: '#e6f7ff',
-        borderWidth: 2,
-        marginTop: 5,
-    },
-    noteDetailsRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 6,
-    },
-    dateText: {
-        fontSize: 12,
-        opacity: 0.7,
+        backgroundColor: '#f0f8fc',
+        borderColor: 'transparent',
+        borderRadius: 32,
+        paddingHorizontal: 22,
+        paddingVertical: 12,
+        marginBottom: 12,
+        // shadowColor: '#000',
+        // shadowOffset: { width: 0, height: 1 },
+        // shadowOpacity: 0.05,
+        // shadowRadius: 2,
+        elevation: 1,
     },
     noteContent: {
         flex: 1,
+        marginRight: 12,
     },
     noteTitle: {
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '600',
+        color: '#2D3748',
+        marginBottom: 4,
+    },
+    noteDetailsContainer: {
+        flexDirection: 'column',
+    },
+    dateContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginBottom: 6,
+    },
+    dateText: {
+        fontSize: 12,
+        color: '#7B8794',
+        marginLeft: 4,
     },
     notePreview: {
         fontSize: 14,
-        opacity: 0.7,
+        color: '#4A5568',
     },
     deleteButton: {
         justifyContent: 'center',
-        paddingLeft: 10,
+        alignItems: 'center',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FFF',
     },
     addButton: {
         position: 'absolute',
