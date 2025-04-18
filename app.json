@@ -15,13 +15,18 @@
       "imageResizeMode": "contain"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "This app uses speech synthesis to read Bible verses aloud.",
+        "NSMicrophoneUsageDescription": "This app uses the microphone for speech synthesis."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/rccg.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": ["RECORD_AUDIO"]
     },
     "web": {
       "bundler": "metro",
@@ -44,7 +49,8 @@
         {
           "permissions": true
         }
-      ]
+      ],
+      "expo-speech"
     ],
     "experiments": {
       "typedRoutes": true

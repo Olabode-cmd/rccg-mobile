@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, FlatList, StatusBar } from 'react-native';
 import bible from "../../assets/bible/en_kjv.json";
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import FadingHeaderScrollView from '@/components/FadingHeaderScroll';
+import * as Speech from 'expo-speech';
+import { Ionicons } from '@expo/vector-icons';
 
 const Bible = () => {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme];
+    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [currentSpeakingVerse, setCurrentSpeakingVerse] = useState<number | null>(null);
+    const flatListRef = useRef<FlatList>(null);
 
     const styles = StyleSheet.create({
         safeArea: {
@@ -124,7 +129,18 @@ const Bible = () => {
         disabledButton: {
             backgroundColor: colors.icon + '40',
             opacity: 0.5,
-        }
+        },
+        headerRight: {
+            position: 'absolute',
+            right: 16,
+            zIndex: 1,
+        },
+        speakingVerse: {
+            backgroundColor: colors.tint + '20',
+        },
+        playButton: {
+            padding: 8,
+        },
     });
 
     // Type assertion for Bible structure
@@ -268,9 +284,13 @@ const Bible = () => {
                     {bookNames[selectedBook]} {selectedChapter + 1}
                 </Text>
                 <FlatList
+                    ref={flatListRef}
                     data={versesData}
-                    renderItem={({ item }) => (
-                        <View style={styles.verseWrapper}>
+                    renderItem={({ item, index }) => (
+                        <View style={[
+                            styles.verseWrapper,
+                            currentSpeakingVerse === index && styles.speakingVerse
+                        ]}>
                             <Text style={styles.verseNumber}>{item.number}</Text>
                             <Text style={styles.verseText}>{item.verse}</Text>
                         </View>
@@ -311,6 +331,106 @@ const Bible = () => {
         );
     };
 
+    const speakVerses = async (verses: string[], startIndex: number = 0) => {
+        if (!isSpeaking) return;
+        
+        try {
+            const speaking = await Speech.isSpeakingAsync();
+            if (speaking) {
+                await Speech.stop();
+            }
+
+            for (let i = startIndex; i < verses.length; i++) {
+                if (!isSpeaking) break;
+                
+                setCurrentSpeakingVerse(i);
+                
+                // Scroll to the speaking verse
+                flatListRef.current?.scrollToIndex({
+                    index: i,
+                    animated: true,
+                    viewPosition: 0.5,
+                });
+                
+                await new Promise<void>((resolve, reject) => {
+                    Speech.speak(verses[i], {
+                        onStart: () => {
+                            console.log('Started speaking verse:', i + 1);
+                        },
+                        onDone: () => {
+                            console.log('Finished speaking verse:', i + 1);
+                            resolve();
+                        },
+                        onError: (error) => {
+                            console.error('Speech error:', error);
+                            reject(error);
+                        },
+                        onStopped: () => {
+                            console.log('Speech stopped for verse:', i + 1);
+                            resolve();
+                        },
+                        rate: 0.9,  // Slightly slower rate for better clarity
+                        pitch: 1.0,
+                        language: 'en'  // Explicitly set language to English
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Speech error:', error);
+            setIsSpeaking(false);
+            setCurrentSpeakingVerse(null);
+        }
+        
+        setIsSpeaking(false);
+        setCurrentSpeakingVerse(null);
+    };
+
+    const toggleSpeech = async () => {
+        try {
+            if (isSpeaking) {
+                console.log('Stopping speech...');
+                await Speech.stop();
+                setIsSpeaking(false);
+                setCurrentSpeakingVerse(null);
+            } else {
+                console.log('Starting speech...');
+                // Add a simple test first
+                await Speech.speak('Testing speech synthesis', {
+                    onStart: () => console.log('Test speech started'),
+                    onDone: () => console.log('Test speech finished'),
+                    onError: (error) => console.error('Test speech error:', error),
+                    rate: 0.9,
+                    pitch: 1.0,
+                    language: 'en'
+                });
+
+                setIsSpeaking(true);
+                if (view === 'verse') {
+                    const verses = typedBible[selectedBook].chapters[selectedChapter];
+                    console.log('About to speak verses:', verses.length);
+                    speakVerses(verses);
+                }
+            }
+        } catch (error) {
+            console.error('Toggle speech error:', error);
+            setIsSpeaking(false);
+            setCurrentSpeakingVerse(null);
+        }
+    };
+
+    // Clean up speech when component unmounts
+    useEffect(() => {
+        return () => {
+            Speech.stop();
+        };
+    }, []);
+
+    // Stop speech when changing views
+    useEffect(() => {
+        Speech.stop();
+        setIsSpeaking(false);
+        setCurrentSpeakingVerse(null);
+    }, [view, selectedBook, selectedChapter]);
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -323,6 +443,15 @@ const Bible = () => {
                         </TouchableOpacity>
                     )}
                     <Text style={styles.title}>Holy Bible</Text>
+                    {view === 'verse' && (
+                        <TouchableOpacity onPress={toggleSpeech} style={styles.headerRight}>
+                            <Ionicons 
+                                name={isSpeaking ? "stop" : "play"} 
+                                size={24} 
+                                color={colors.tint}
+                            />
+                        </TouchableOpacity>
+                    )}
                 </View>
 
                 {view === 'book' && renderBookSelection()}
@@ -332,6 +461,5 @@ const Bible = () => {
         </SafeAreaView>
     );
 };
-
 
 export default Bible;
