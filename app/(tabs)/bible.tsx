@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, FlatList, StatusBar } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import bible from "../../assets/bible/en_kjv.json";
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -180,6 +181,53 @@ const Bible = () => {
         controlButton: {
             padding: 10,
         },
+        quickNavContainer: {
+            backgroundColor: colors.background,
+            padding: 16,
+            marginBottom: 8,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.icon + '40',
+        },
+        quickNavRow: {
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 12,
+        },
+        selectContainer: {
+            flex: 1,
+            marginHorizontal: 4,
+        },
+        select: {
+            backgroundColor: colors.tint + '10',
+            borderRadius: 8,
+            padding: 8,
+            color: colors.text,
+        },
+        selectLabel: {
+            color: colors.text,
+            fontSize: 12,
+            marginBottom: 4,
+            opacity: 0.7,
+        },
+        goButton: {
+            backgroundColor: colors.tint,
+            borderRadius: 8,
+            padding: 12,
+            alignItems: 'center',
+            marginTop: 8,
+        },
+        goButtonText: {
+            color: '#FFFFFF',
+            fontWeight: '600',
+        },
+        quickNavTitle: {
+            color: colors.text,
+            fontSize: 14,
+            fontWeight: '600',
+            marginBottom: 12,
+            opacity: 0.8,
+        },
     });
 
     // Type assertion for Bible structure
@@ -193,6 +241,11 @@ const Bible = () => {
     const [selectedChapter, setSelectedChapter] = useState(0);
     const [view, setView] = useState('book'); // 'book', 'chapter', 'verse'
     const [bookNames, setBookNames] = useState<string[]>([]);
+
+    // Add new states for quick navigation
+    const [quickNavBook, setQuickNavBook] = useState<number>(0);
+    const [quickNavChapter, setQuickNavChapter] = useState<number>(1);
+    const [quickNavVerse, setQuickNavVerse] = useState<number>(1);
 
     // Get all book names on component mount
     useEffect(() => {
@@ -260,19 +313,22 @@ const Bible = () => {
     // Render book selection screen
     const renderBookSelection = () => {
         return (
-            <FlatList
-                data={bookNames}
-                renderItem={({ item, index }) => (
-                    <TouchableOpacity
-                        style={styles.item}
-                        onPress={() => handleBookSelect(index)}
-                    >
-                        <Text style={styles.itemText}>{item}</Text>
-                    </TouchableOpacity>
-                )}
-                keyExtractor={(_, index) => index.toString()}
-                contentContainerStyle={styles.list}
-            />
+            <View>
+                <Text style={{ marginTop: 16, fontSize: 24, fontWeight: 'bold', paddingLeft: 20 }}>Books</Text>
+                <FlatList
+                    data={bookNames}
+                    renderItem={({ item, index }) => (
+                        <TouchableOpacity
+                            style={styles.item}
+                            onPress={() => handleBookSelect(index)}
+                        >
+                            <Text style={styles.itemText}>{item}</Text>
+                        </TouchableOpacity>
+                    )}
+                    keyExtractor={(_, index) => index.toString()}
+                    contentContainerStyle={styles.list}
+                />
+            </View>
         );
     };
 
@@ -502,6 +558,104 @@ const Bible = () => {
         setCurrentSpeakingVerse(null);
     }, [view, selectedBook, selectedChapter]);
 
+    // Add helper function to get chapter count
+    const getChapterCount = (bookIndex: number) => {
+        return typedBible[bookIndex]?.chapters.length || 0;
+    };
+
+    // Add helper function to get verse count
+    const getVerseCount = (bookIndex: number, chapterIndex: number) => {
+        return typedBible[bookIndex]?.chapters[chapterIndex]?.length || 0;
+    };
+
+    // Add navigation handler
+    const handleQuickNavigation = () => {
+        setSelectedBook(quickNavBook);
+        setSelectedChapter(quickNavChapter - 1);
+        setView('verse');
+        
+        // Wait for state updates and then highlight the verse
+        setTimeout(() => {
+            const verseIndex = quickNavVerse - 1; // Convert to 0-based index
+            setCurrentSpeakingVerse(verseIndex);
+            
+            // Scroll to the verse
+            flatListRef.current?.scrollToIndex({
+                index: verseIndex,
+                animated: true,
+                viewPosition: 0.3,
+            });
+
+            // Remove highlight after 2 seconds
+            setTimeout(() => {
+                setCurrentSpeakingVerse(null);
+            }, 2000);
+        }, 100);
+    };
+
+    // Add Quick Navigation component
+    const QuickNavigation = () => {
+        const chapterCount = getChapterCount(quickNavBook);
+        const verseCount = getVerseCount(quickNavBook, quickNavChapter - 1);
+
+        return (
+            <View style={styles.quickNavContainer}>
+                <Text style={styles.quickNavTitle}>Jump to verse</Text>
+                <View style={styles.quickNavRow}>
+                    <View style={styles.selectContainer}>
+                        <Text style={styles.selectLabel}>Book</Text>
+                        <Picker
+                            selectedValue={quickNavBook}
+                            onValueChange={(itemValue: number) => {
+                                setQuickNavBook(itemValue);
+                                setQuickNavChapter(1);
+                                setQuickNavVerse(1);
+                            }}
+                            style={styles.select}
+                        >
+                            {bookNames.map((book, index) => (
+                                <Picker.Item key={index} label={book} value={index} />
+                            ))}
+                        </Picker>
+                    </View>
+
+                    <View style={styles.selectContainer}>
+                        <Text style={styles.selectLabel}>Chapter</Text>
+                        <Picker
+                            selectedValue={quickNavChapter}
+                            onValueChange={(itemValue: number) => {
+                                setQuickNavChapter(itemValue);
+                                setQuickNavVerse(1);
+                            }}
+                            style={styles.select}
+                        >
+                            {Array.from({ length: chapterCount }, (_, i) => i + 1).map((num) => (
+                                <Picker.Item key={num} label={num.toString()} value={num} />
+                            ))}
+                        </Picker>
+                    </View>
+
+                    <View style={styles.selectContainer}>
+                        <Text style={styles.selectLabel}>Verse</Text>
+                        <Picker
+                            selectedValue={quickNavVerse}
+                            onValueChange={(itemValue: number) => setQuickNavVerse(itemValue)}
+                            style={styles.select}
+                        >
+                            {Array.from({ length: verseCount }, (_, i) => i + 1).map((num) => (
+                                <Picker.Item key={num} label={num.toString()} value={num} />
+                            ))}
+                        </Picker>
+                    </View>
+                </View>
+
+                <TouchableOpacity style={styles.goButton} onPress={handleQuickNavigation}>
+                    <Text style={styles.goButtonText}>Go to Verse</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    };
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" backgroundColor="#141414" />
@@ -514,10 +668,7 @@ const Bible = () => {
                     )}
                     <Text style={styles.title}>Holy Bible</Text>
                     {view === 'verse' && !isSpeaking && (
-                        <TouchableOpacity 
-                            onPress={startReading} 
-                            style={styles.headerButton}
-                        >
+                        <TouchableOpacity onPress={toggleSpeech} style={styles.headerButton}>
                             <Ionicons 
                                 name="play" 
                                 size={24} 
@@ -527,6 +678,7 @@ const Bible = () => {
                     )}
                 </View>
 
+                {view === 'book' && <QuickNavigation />}
                 {view === 'book' && renderBookSelection()}
                 {view === 'chapter' && renderChapterSelection()}
                 {view === 'verse' && renderVerseScreen()}
