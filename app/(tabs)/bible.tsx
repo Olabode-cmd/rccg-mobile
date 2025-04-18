@@ -13,6 +13,9 @@ const Bible = () => {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [currentSpeakingVerse, setCurrentSpeakingVerse] = useState<number | null>(null);
     const flatListRef = useRef<FlatList>(null);
+    const [currentVerse, setCurrentVerse] = useState<number>(0);
+    const [isPaused, setIsPaused] = useState(false);
+    const [speechText, setSpeechText] = useState<string>('');
 
     const styles = StyleSheet.create({
         safeArea: {
@@ -140,6 +143,42 @@ const Bible = () => {
         },
         playButton: {
             padding: 8,
+        },
+        headerControls: {
+            flexDirection: 'row',
+            position: 'absolute',
+            right: 16,
+            alignItems: 'center',
+        },
+        headerButton: {
+            padding: 8,
+        },
+        restartButton: {
+            marginRight: 8,
+        },
+        controlsContainer: {
+            position: 'absolute',
+            bottom: 20, // Closer to bottom
+            left: 20,
+            right: 20,
+            backgroundColor: colors.background,
+            borderRadius: 25,
+            padding: 12,
+            flexDirection: 'row',
+            justifyContent: 'space-around',
+            alignItems: 'center',
+            shadowColor: "#000",
+            shadowOffset: {
+                width: 0,
+                height: 2,
+            },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+            elevation: 5,
+            marginHorizontal: 20,
+        },
+        controlButton: {
+            padding: 10,
         },
     });
 
@@ -331,90 +370,121 @@ const Bible = () => {
         );
     };
 
-    const speakVerses = async (verses: string[], startIndex: number = 0) => {
-        if (!isSpeaking) return;
-        
-        try {
-            const speaking = await Speech.isSpeakingAsync();
-            if (speaking) {
-                await Speech.stop();
-            }
-
-            for (let i = startIndex; i < verses.length; i++) {
-                if (!isSpeaking) break;
-                
-                setCurrentSpeakingVerse(i);
-                
-                // Scroll to the speaking verse
-                flatListRef.current?.scrollToIndex({
-                    index: i,
-                    animated: true,
-                    viewPosition: 0.5,
-                });
-                
-                await new Promise<void>((resolve, reject) => {
-                    Speech.speak(verses[i], {
-                        onStart: () => {
-                            console.log('Started speaking verse:', i + 1);
-                        },
-                        onDone: () => {
-                            console.log('Finished speaking verse:', i + 1);
-                            resolve();
-                        },
-                        onError: (error) => {
-                            console.error('Speech error:', error);
-                            reject(error);
-                        },
-                        onStopped: () => {
-                            console.log('Speech stopped for verse:', i + 1);
-                            resolve();
-                        },
-                        rate: 0.9,  // Slightly slower rate for better clarity
-                        pitch: 1.0,
-                        language: 'en'  // Explicitly set language to English
-                    });
-                });
-            }
-        } catch (error) {
-            console.error('Speech error:', error);
-            setIsSpeaking(false);
-            setCurrentSpeakingVerse(null);
-        }
-        
-        setIsSpeaking(false);
-        setCurrentSpeakingVerse(null);
-    };
-
-    const toggleSpeech = async () => {
-        try {
-            if (isSpeaking) {
-                console.log('Stopping speech...');
-                await Speech.stop();
+    const speakVerse = (text: string, onComplete?: () => void) => {
+        console.log('speakVerse called with:', text);
+        Speech.speak(text, {
+            onStart: () => {
+                console.log('Started speaking:', text.substring(0, 30) + '...');
+            },
+            onDone: () => {
+                console.log('Finished speaking current text');
+                // Always call onComplete when verse is done, regardless of pause state
+                onComplete?.();
+            },
+            onError: (error) => {
+                console.error('Speech error:', error);
                 setIsSpeaking(false);
                 setCurrentSpeakingVerse(null);
-            } else {
-                console.log('Starting speech...');
-                // Add a simple test first
-                await Speech.speak('Testing speech synthesis', {
-                    onStart: () => console.log('Test speech started'),
-                    onDone: () => console.log('Test speech finished'),
-                    onError: (error) => console.error('Test speech error:', error),
-                    rate: 0.9,
-                    pitch: 1.0,
-                    language: 'en'
-                });
+            },
+            rate: 0.9,
+            pitch: 1.0,
+            language: 'en-US'
+        });
+    };
 
-                setIsSpeaking(true);
-                if (view === 'verse') {
-                    const verses = typedBible[selectedBook].chapters[selectedChapter];
-                    console.log('About to speak verses:', verses.length);
-                    speakVerses(verses);
-                }
+    const speakVerses = (verses: string[], startIndex: number = 0, force: boolean = false) => {
+        console.log('speakVerses called with startIndex:', startIndex, 'force:', force);
+        if (!isSpeaking && !force) {
+            console.log('Not speaking and not forced, returning early');
+            return;
+        }
+        
+        setCurrentVerse(startIndex);
+        setCurrentSpeakingVerse(startIndex);
+
+        const verseText = String(verses[startIndex]);
+        const verseToSpeak = `Verse ${startIndex + 1}. ${verseText}`;
+        console.log('Preparing to speak:', verseToSpeak.substring(0, 30) + '...');
+
+        flatListRef.current?.scrollToIndex({
+            index: startIndex,
+            animated: true,
+            viewPosition: 0.5,
+        });
+
+        speakVerse(verseToSpeak, () => {
+            console.log('Verse complete callback');
+            if ((isSpeaking || force) && startIndex + 1 < verses.length) {
+                speakVerses(verses, startIndex + 1, force);
+            } else if (startIndex + 1 >= verses.length) {
+                console.log('Reached end of verses');
+                setIsSpeaking(false);
+                setCurrentSpeakingVerse(null);
+                setCurrentVerse(0);
             }
-        } catch (error) {
-            console.error('Toggle speech error:', error);
-            setIsSpeaking(false);
-            setCurrentSpeakingVerse(null);
+        });
+    };
+
+    const restartSpeech = () => {
+        Speech.stop();
+        if (view === 'verse') {
+            const verses = typedBible[selectedBook].chapters[selectedChapter];
+            speakVerses(verses, 0);
+        }
+    };
+
+    const togglePause = async () => {
+        console.log('togglePause called, current isPaused:', isPaused);
+        if (isPaused) {
+            // Resume by starting current verse again
+            setIsPaused(false);
+            const verses = typedBible[selectedBook].chapters[selectedChapter];
+            speakVerses(verses, currentVerse, true);
+        } else {
+            // Simple pause - just stop speaking
+            setIsPaused(true);
+            await Speech.stop();
+        }
+    };
+
+    const moveToVerse = (direction: 'next' | 'prev') => {
+        const verses = typedBible[selectedBook].chapters[selectedChapter];
+        const newIndex = direction === 'next' ? 
+            Math.min(currentVerse + 1, verses.length - 1) : 
+            Math.max(currentVerse - 1, 0);
+
+        Speech.stop();
+        speakVerses(verses, newIndex);
+    };
+
+    const stopSpeech = () => {
+        console.log('stopSpeech called');
+        Speech.stop();
+        setIsSpeaking(false);
+        setCurrentSpeakingVerse(null);
+        setCurrentVerse(0);
+        setIsPaused(false);
+    };
+
+    const startReading = () => {
+        console.log('startReading called');
+        if (view === 'verse') {
+            const verses = typedBible[selectedBook].chapters[selectedChapter];
+            if (verses.length > 0) {
+                console.log('Starting to read verses:', verses.length);
+                speakVerses(verses, 0, true);
+                setIsSpeaking(true);
+                setIsPaused(false);
+            }
+        }
+    };
+
+    const toggleSpeech = () => {
+        console.log('toggleSpeech called, current isSpeaking:', isSpeaking);
+        if (isSpeaking) {
+            stopSpeech();
+        } else {
+            startReading();
         }
     };
 
@@ -443,10 +513,13 @@ const Bible = () => {
                         </TouchableOpacity>
                     )}
                     <Text style={styles.title}>Holy Bible</Text>
-                    {view === 'verse' && (
-                        <TouchableOpacity onPress={toggleSpeech} style={styles.headerRight}>
+                    {view === 'verse' && !isSpeaking && (
+                        <TouchableOpacity 
+                            onPress={startReading} 
+                            style={styles.headerButton}
+                        >
                             <Ionicons 
-                                name={isSpeaking ? "stop" : "play"} 
+                                name="play" 
                                 size={24} 
                                 color={colors.tint}
                             />
@@ -457,6 +530,27 @@ const Bible = () => {
                 {view === 'book' && renderBookSelection()}
                 {view === 'chapter' && renderChapterSelection()}
                 {view === 'verse' && renderVerseScreen()}
+
+                {/* Reading Controls */}
+                {isSpeaking && view === 'verse' && (
+                    <View style={styles.controlsContainer}>
+                        <TouchableOpacity onPress={() => moveToVerse('prev')} style={styles.controlButton}>
+                            <Ionicons name="play-skip-back" size={24} color={colors.tint} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={restartSpeech} style={styles.controlButton}>
+                            <Ionicons name="refresh" size={24} color={colors.tint} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={togglePause} style={styles.controlButton}>
+                            <Ionicons name={isPaused ? "play" : "pause"} size={24} color={colors.tint} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={stopSpeech} style={styles.controlButton}>
+                            <Ionicons name="stop" size={24} color={colors.tint} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => moveToVerse('next')} style={styles.controlButton}>
+                            <Ionicons name="play-skip-forward" size={24} color={colors.tint} />
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </SafeAreaView>
     );

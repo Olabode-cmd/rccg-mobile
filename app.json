@@ -49,8 +49,7 @@
         {
           "permissions": true
         }
-      ],
-      "expo-speech"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
