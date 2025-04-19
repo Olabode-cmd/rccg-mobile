@@ -5,7 +5,8 @@ module.exports = function (api) {
     plugins: [
       // Required for expo-router
       'expo-router/babel',
-      // Add any other babel plugins here
+      // Transform environment variables
+      'transform-inline-environment-variables',
     ],
   };
 }; 

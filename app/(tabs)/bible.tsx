@@ -11,12 +11,479 @@ import { Ionicons } from '@expo/vector-icons';
 const Bible = () => {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme];
+    
+    // Define Old and New Testament book indices
+    const OLD_TESTAMENT_BOOKS = Array.from({ length: 39 }, (_, i) => i); // 0-38
+    const NEW_TESTAMENT_BOOKS = Array.from({ length: 27 }, (_, i) => i + 39); // 39-65
+
+    // State declarations
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [currentSpeakingVerse, setCurrentSpeakingVerse] = useState<number | null>(null);
-    const flatListRef = useRef<FlatList>(null);
     const [currentVerse, setCurrentVerse] = useState<number>(0);
     const [isPaused, setIsPaused] = useState(false);
     const [speechText, setSpeechText] = useState<string>('');
+    const [view, setView] = useState<'testament' | 'oldTestament' | 'newTestament' | 'chapter' | 'verse'>('testament');
+    const [selectedBook, setSelectedBook] = useState(0);
+    const [selectedChapter, setSelectedChapter] = useState(0);
+    const [bookNames, setBookNames] = useState<string[]>([]);
+    const [quickNavBook, setQuickNavBook] = useState<number>(0);
+    const [quickNavChapter, setQuickNavChapter] = useState<number>(1);
+    const [quickNavVerse, setQuickNavVerse] = useState<number>(1);
+
+    // Refs
+    const flatListRef = useRef<FlatList>(null);
+
+    // Type assertion for Bible structure
+    const typedBible = bible as Array<{
+        abbrev: string,
+        name?: string,
+        chapters: string[][]
+    }>;
+
+    // Get all book names on component mount
+    useEffect(() => {
+        const names = typedBible.map((book, index) => {
+            return book.name || book.abbrev || `Book ${index + 1}`;
+        });
+        setBookNames(names);
+    }, []);
+
+    // Handler for book selection
+    const handleBookSelect = (index: number) => {
+        setSelectedBook(index);
+        setSelectedChapter(0);
+        setView('chapter');
+    };
+
+    // Handler for chapter selection
+    const handleChapterSelect = (index: number) => {
+        setSelectedChapter(index);
+        setView('verse');
+    };
+
+    // Go back to previous view
+    const handleBack = () => {
+        switch (view) {
+            case 'verse':
+                setView('chapter');
+                break;
+            case 'chapter':
+                setView(selectedBook < 39 ? 'oldTestament' : 'newTestament');
+                break;
+            case 'oldTestament':
+            case 'newTestament':
+                setView('testament');
+                break;
+            default:
+                break;
+        }
+    };
+
+    // Navigate to next chapter
+    const handleNextChapter = () => {
+        const currentBookChapters = typedBible[selectedBook].chapters.length;
+
+        // If this is the last chapter of the book
+        if (selectedChapter >= currentBookChapters - 1) {
+            // If this is not the last book
+            if (selectedBook < typedBible.length - 1) {
+                setSelectedBook(selectedBook + 1);
+                setSelectedChapter(0);
+            }
+        } else {
+            // Move to next chapter in current book
+            setSelectedChapter(selectedChapter + 1);
+        }
+    };
+
+    // Navigate to previous chapter
+    const handlePreviousChapter = () => {
+        // If this is the first chapter of the book
+        if (selectedChapter <= 0) {
+            // If this is not the first book
+            if (selectedBook > 0) {
+                const prevBookChapters = typedBible[selectedBook - 1].chapters.length;
+                setSelectedBook(selectedBook - 1);
+                setSelectedChapter(prevBookChapters - 1);
+            }
+        } else {
+            // Move to previous chapter in current book
+            setSelectedChapter(selectedChapter - 1);
+        }
+    };
+
+    // Render testament selection screen
+    const renderTestamentSelection = () => {
+        return (
+            <View>
+                <QuickNavigation />
+                <Text style={styles.testamentTitle}>Testaments</Text>
+                <TouchableOpacity
+                    style={styles.item}
+                    onPress={() => setView('oldTestament')}
+                >
+                    <Text style={styles.itemText}>Old Testament</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.item}
+                    onPress={() => setView('newTestament')}
+                >
+                    <Text style={styles.itemText}>New Testament</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    };
+
+    // Render books for a specific testament
+    const renderTestamentBooks = (isOldTestament: boolean) => {
+        const testamentBooks = getTestamentBooks(isOldTestament);
+        const bookIndices = isOldTestament ? OLD_TESTAMENT_BOOKS : NEW_TESTAMENT_BOOKS;
+
+        return (
+            <View>
+                <Text style={styles.testamentTitle}>
+                    {isOldTestament ? 'Old Testament' : 'New Testament'}
+                </Text>
+                <FlatList
+                    data={testamentBooks}
+                    renderItem={({ item, index }) => (
+                        <TouchableOpacity
+                            style={styles.item}
+                            onPress={() => {
+                                setSelectedBook(bookIndices[index]);
+                                setSelectedChapter(0);
+                                setView('chapter');
+                            }}
+                        >
+                            <Text style={styles.itemText}>{item}</Text>
+                        </TouchableOpacity>
+                    )}
+                    keyExtractor={(_, index) => index.toString()}
+                    contentContainerStyle={styles.list}
+                />
+            </View>
+        );
+    };
+
+    // Render chapter selection screen
+    const renderChapterSelection = () => {
+        const chapters = typedBible[selectedBook].chapters.length;
+        const chapterArray = Array.from({ length: chapters }, (_, i) => i + 1);
+
+        return (
+            <View style={styles.container}>
+                <Text style={styles.headerText}>{bookNames[selectedBook]}</Text>
+                <FlatList
+                    data={chapterArray}
+                    renderItem={({ item, index }) => (
+                        <TouchableOpacity
+                            style={styles.chapterItem}
+                            onPress={() => handleChapterSelect(index)}
+                        >
+                            <Text style={styles.chapterText}>{item}</Text>
+                        </TouchableOpacity>
+                    )}
+                    keyExtractor={(item) => item.toString()}
+                    numColumns={4}
+                    contentContainerStyle={styles.chapterGrid}
+                />
+            </View>
+        );
+    };
+
+    // Render verse screen
+    const renderVerseScreen = () => {
+        const verses = typedBible[selectedBook].chapters[selectedChapter];
+        const currentBookChapters = typedBible[selectedBook].chapters.length;
+        const isLastChapter = selectedChapter >= currentBookChapters - 1;
+        const isLastBook = selectedBook >= typedBible.length - 1;
+        const isFirstChapter = selectedChapter <= 0;
+        const isFirstBook = selectedBook <= 0;
+
+        // Create data array with verse numbers and text
+        const versesData = verses.map((verse, index) => ({
+            verse: verse,
+            number: index + 1,
+        }));
+
+        return (
+            <View style={styles.container}>
+                <Text style={styles.headerText}>
+                    {bookNames[selectedBook]} {selectedChapter + 1}
+                </Text>
+                <FlatList
+                    ref={flatListRef}
+                    data={versesData}
+                    renderItem={({ item, index }) => (
+                        <View style={[
+                            styles.verseWrapper,
+                            currentSpeakingVerse === index && styles.speakingVerse
+                        ]}>
+                            <Text style={styles.verseNumber}>{item.number}</Text>
+                            <Text style={styles.verseText}>{item.verse}</Text>
+                        </View>
+                    )}
+                    keyExtractor={(item, index) => index.toString()}
+                    contentContainerStyle={styles.verseContainer}
+                    ListFooterComponent={() => (
+                        <View style={styles.navigationButtonsContainer}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.navigationButton,
+                                    (isFirstChapter && isFirstBook) ? styles.disabledButton : {}
+                                ]}
+                                onPress={handlePreviousChapter}
+                                disabled={isFirstChapter && isFirstBook}
+                            >
+                                <Text style={styles.navigationButtonText}>
+                                    {isFirstChapter && !isFirstBook ? `← ${bookNames[selectedBook - 1]}` : '← Previous'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.navigationButton,
+                                    (isLastChapter && isLastBook) ? styles.disabledButton : {}
+                                ]}
+                                onPress={handleNextChapter}
+                                disabled={isLastChapter && isLastBook}
+                            >
+                                <Text style={styles.navigationButtonText}>
+                                    {isLastChapter && !isLastBook ? `${bookNames[selectedBook + 1]} →` : 'Next →'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                />
+            </View>
+        );
+    };
+
+    const speakVerse = (text: string, onComplete?: () => void) => {
+        Speech.speak(text, {
+            onStart: () => {
+                // Verse started speaking
+            },
+            onDone: () => {
+                // Always call onComplete when verse is done, regardless of pause state
+                onComplete?.();
+            },
+            onError: (error) => {
+                setIsSpeaking(false);
+                setCurrentSpeakingVerse(null);
+            },
+            rate: 0.9,
+            pitch: 1.0,
+            language: 'en-US'
+        });
+    };
+
+    const speakVerses = (verses: string[], startIndex: number = 0, force: boolean = false) => {
+        if (!isSpeaking && !force) {
+            return;
+        }
+        
+        setCurrentVerse(startIndex);
+        setCurrentSpeakingVerse(startIndex);
+
+        const verseText = String(verses[startIndex]);
+        const verseToSpeak = `Verse ${startIndex + 1}. ${verseText}`;
+
+        flatListRef.current?.scrollToIndex({
+            index: startIndex,
+            animated: true,
+            viewPosition: 0.5,
+        });
+
+        speakVerse(verseToSpeak, () => {
+            if ((isSpeaking || force) && startIndex + 1 < verses.length) {
+                speakVerses(verses, startIndex + 1, force);
+            } else if (startIndex + 1 >= verses.length) {
+                setIsSpeaking(false);
+                setCurrentSpeakingVerse(null);
+                setCurrentVerse(0);
+            }
+        });
+    };
+
+    const restartSpeech = () => {
+        Speech.stop();
+        if (view === 'verse') {
+            const verses = typedBible[selectedBook].chapters[selectedChapter];
+            speakVerses(verses, 0);
+        }
+    };
+
+    const togglePause = async () => {
+        if (isPaused) {
+            // Resume by starting current verse again
+            setIsPaused(false);
+            const verses = typedBible[selectedBook].chapters[selectedChapter];
+            speakVerses(verses, currentVerse, true);
+        } else {
+            // Simple pause - just stop speaking
+            setIsPaused(true);
+            await Speech.stop();
+        }
+    };
+
+    const moveToVerse = (direction: 'next' | 'prev') => {
+        const verses = typedBible[selectedBook].chapters[selectedChapter];
+        const newIndex = direction === 'next' ? 
+            Math.min(currentVerse + 1, verses.length - 1) : 
+            Math.max(currentVerse - 1, 0);
+
+        Speech.stop();
+        speakVerses(verses, newIndex);
+    };
+
+    const stopSpeech = () => {
+        Speech.stop();
+        setIsSpeaking(false);
+        setCurrentSpeakingVerse(null);
+        setCurrentVerse(0);
+        setIsPaused(false);
+    };
+
+    const startReading = () => {
+        if (view === 'verse') {
+            const verses = typedBible[selectedBook].chapters[selectedChapter];
+            if (verses.length > 0) {
+                speakVerses(verses, 0, true);
+                setIsSpeaking(true);
+                setIsPaused(false);
+            }
+        }
+    };
+
+    const toggleSpeech = () => {
+        if (isSpeaking) {
+            stopSpeech();
+        } else {
+            startReading();
+        }
+    };
+
+    // Clean up speech when component unmounts
+    useEffect(() => {
+        return () => {
+            Speech.stop();
+        };
+    }, []);
+
+    // Stop speech when changing views
+    useEffect(() => {
+        Speech.stop();
+        setIsSpeaking(false);
+        setCurrentSpeakingVerse(null);
+    }, [view, selectedBook, selectedChapter]);
+
+    // Add helper function to get chapter count
+    const getChapterCount = (bookIndex: number) => {
+        return typedBible[bookIndex]?.chapters.length || 0;
+    };
+
+    // Add helper function to get verse count
+    const getVerseCount = (bookIndex: number, chapterIndex: number) => {
+        return typedBible[bookIndex]?.chapters[chapterIndex]?.length || 0;
+    };
+
+    // Add navigation handler
+    const handleQuickNavigation = () => {
+        setSelectedBook(quickNavBook);
+        setSelectedChapter(quickNavChapter - 1);
+        setView('verse');
+        
+        // Wait for state updates and then highlight the verse
+        setTimeout(() => {
+            const verseIndex = quickNavVerse - 1; // Convert to 0-based index
+            setCurrentSpeakingVerse(verseIndex);
+            
+            // Scroll to the verse
+            flatListRef.current?.scrollToIndex({
+                index: verseIndex,
+                animated: true,
+                viewPosition: 0.3,
+            });
+
+            // Remove highlight after 2 seconds
+            setTimeout(() => {
+                setCurrentSpeakingVerse(null);
+            }, 2000);
+        }, 100);
+    };
+
+    // Add Quick Navigation component
+    const QuickNavigation = () => {
+        const chapterCount = getChapterCount(quickNavBook);
+        const verseCount = getVerseCount(quickNavBook, quickNavChapter - 1);
+
+        return (
+            <View style={styles.quickNavContainer}>
+                <Text style={styles.quickNavTitle}>Jump to verse</Text>
+                <View style={styles.quickNavRow}>
+                    <View style={styles.selectContainer}>
+                        <Text style={styles.selectLabel}>Book</Text>
+                        <Picker
+                            selectedValue={quickNavBook}
+                            onValueChange={(itemValue: number) => {
+                                setQuickNavBook(itemValue);
+                                setQuickNavChapter(1);
+                                setQuickNavVerse(1);
+                            }}
+                            style={styles.select}
+                        >
+                            {bookNames.map((book, index) => (
+                                <Picker.Item key={index} label={book} value={index} />
+                            ))}
+                        </Picker>
+                    </View>
+
+                    <View style={styles.selectContainer}>
+                        <Text style={styles.selectLabel}>Chapter</Text>
+                        <Picker
+                            selectedValue={quickNavChapter}
+                            onValueChange={(itemValue: number) => {
+                                setQuickNavChapter(itemValue);
+                                setQuickNavVerse(1);
+                            }}
+                            style={styles.select}
+                        >
+                            {Array.from({ length: chapterCount }, (_, i) => i + 1).map((num) => (
+                                <Picker.Item key={num} label={num.toString()} value={num} />
+                            ))}
+                        </Picker>
+                    </View>
+
+                    <View style={styles.selectContainer}>
+                        <Text style={styles.selectLabel}>Verse</Text>
+                        <Picker
+                            selectedValue={quickNavVerse}
+                            onValueChange={(itemValue: number) => setQuickNavVerse(itemValue)}
+                            style={styles.select}
+                        >
+                            {Array.from({ length: verseCount }, (_, i) => i + 1).map((num) => (
+                                <Picker.Item key={num} label={num.toString()} value={num} />
+                            ))}
+                        </Picker>
+                    </View>
+                </View>
+
+                <TouchableOpacity style={styles.goButton} onPress={handleQuickNavigation}>
+                    <Text style={styles.goButtonText}>Go to Verse</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    };
+
+    // Get book names for a specific testament
+    const getTestamentBooks = (isOldTestament: boolean) => {
+        const bookIndices = isOldTestament ? OLD_TESTAMENT_BOOKS : NEW_TESTAMENT_BOOKS;
+        return bookIndices.map(index => {
+            const book = typedBible[index];
+            return book.name || book.abbrev || `Book ${index + 1}`;
+        });
+    };
 
     const styles = StyleSheet.create({
         safeArea: {
@@ -228,440 +695,28 @@ const Bible = () => {
             marginBottom: 12,
             opacity: 0.8,
         },
+        testamentItem: {
+            padding: 20,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.icon,
+            backgroundColor: colors.background,
+        },
+        testamentTitle: {
+            fontSize: 24,
+            fontWeight: 'bold',
+            color: colors.text,
+            marginTop: 24,
+            marginBottom: 8,
+            paddingHorizontal: 20,
+        },
     });
-
-    // Type assertion for Bible structure
-    const typedBible = bible as Array<{
-        abbrev: string,
-        name?: string,
-        chapters: string[][]
-    }>;
-
-    const [selectedBook, setSelectedBook] = useState(0);
-    const [selectedChapter, setSelectedChapter] = useState(0);
-    const [view, setView] = useState('book'); // 'book', 'chapter', 'verse'
-    const [bookNames, setBookNames] = useState<string[]>([]);
-
-    // Add new states for quick navigation
-    const [quickNavBook, setQuickNavBook] = useState<number>(0);
-    const [quickNavChapter, setQuickNavChapter] = useState<number>(1);
-    const [quickNavVerse, setQuickNavVerse] = useState<number>(1);
-
-    // Get all book names on component mount
-    useEffect(() => {
-        const names = typedBible.map((book, index) => {
-            return book.name || book.abbrev || `Book ${index + 1}`;
-        });
-        setBookNames(names);
-    }, []);
-
-    // Handler for book selection
-    const handleBookSelect = (index: number) => {
-        setSelectedBook(index);
-        setSelectedChapter(0);
-        setView('chapter');
-    };
-
-    // Handler for chapter selection
-    const handleChapterSelect = (index: number) => {
-        setSelectedChapter(index);
-        setView('verse');
-    };
-
-    // Go back to previous view
-    const handleBack = () => {
-        if (view === 'verse') {
-            setView('chapter');
-        } else if (view === 'chapter') {
-            setView('book');
-        }
-    };
-
-    // Navigate to next chapter
-    const handleNextChapter = () => {
-        const currentBookChapters = typedBible[selectedBook].chapters.length;
-
-        // If this is the last chapter of the book
-        if (selectedChapter >= currentBookChapters - 1) {
-            // If this is not the last book
-            if (selectedBook < typedBible.length - 1) {
-                setSelectedBook(selectedBook + 1);
-                setSelectedChapter(0);
-            }
-        } else {
-            // Move to next chapter in current book
-            setSelectedChapter(selectedChapter + 1);
-        }
-    };
-
-    // Navigate to previous chapter
-    const handlePreviousChapter = () => {
-        // If this is the first chapter of the book
-        if (selectedChapter <= 0) {
-            // If this is not the first book
-            if (selectedBook > 0) {
-                const prevBookChapters = typedBible[selectedBook - 1].chapters.length;
-                setSelectedBook(selectedBook - 1);
-                setSelectedChapter(prevBookChapters - 1);
-            }
-        } else {
-            // Move to previous chapter in current book
-            setSelectedChapter(selectedChapter - 1);
-        }
-    };
-
-    // Render book selection screen
-    const renderBookSelection = () => {
-        return (
-            <View>
-                <Text style={{ marginTop: 16, fontSize: 24, fontWeight: 'bold', paddingLeft: 20 }}>Books</Text>
-                <FlatList
-                    data={bookNames}
-                    renderItem={({ item, index }) => (
-                        <TouchableOpacity
-                            style={styles.item}
-                            onPress={() => handleBookSelect(index)}
-                        >
-                            <Text style={styles.itemText}>{item}</Text>
-                        </TouchableOpacity>
-                    )}
-                    keyExtractor={(_, index) => index.toString()}
-                    contentContainerStyle={styles.list}
-                />
-            </View>
-        );
-    };
-
-    // Render chapter selection screen
-    const renderChapterSelection = () => {
-        const chapters = typedBible[selectedBook].chapters.length;
-        const chapterArray = Array.from({ length: chapters }, (_, i) => i + 1);
-
-        return (
-            <View style={styles.container}>
-                <Text style={styles.headerText}>{bookNames[selectedBook]}</Text>
-                <FlatList
-                    data={chapterArray}
-                    renderItem={({ item, index }) => (
-                        <TouchableOpacity
-                            style={styles.chapterItem}
-                            onPress={() => handleChapterSelect(index)}
-                        >
-                            <Text style={styles.chapterText}>{item}</Text>
-                        </TouchableOpacity>
-                    )}
-                    keyExtractor={(item) => item.toString()}
-                    numColumns={4}
-                    contentContainerStyle={styles.chapterGrid}
-                />
-            </View>
-        );
-    };
-
-    // Render verse screen
-    const renderVerseScreen = () => {
-        const verses = typedBible[selectedBook].chapters[selectedChapter];
-        const currentBookChapters = typedBible[selectedBook].chapters.length;
-        const isLastChapter = selectedChapter >= currentBookChapters - 1;
-        const isLastBook = selectedBook >= typedBible.length - 1;
-        const isFirstChapter = selectedChapter <= 0;
-        const isFirstBook = selectedBook <= 0;
-
-        // Create data array with verse numbers and text
-        const versesData = verses.map((verse, index) => ({
-            verse: verse,
-            number: index + 1,
-        }));
-
-        return (
-            <View style={styles.container}>
-                <Text style={styles.headerText}>
-                    {bookNames[selectedBook]} {selectedChapter + 1}
-                </Text>
-                <FlatList
-                    ref={flatListRef}
-                    data={versesData}
-                    renderItem={({ item, index }) => (
-                        <View style={[
-                            styles.verseWrapper,
-                            currentSpeakingVerse === index && styles.speakingVerse
-                        ]}>
-                            <Text style={styles.verseNumber}>{item.number}</Text>
-                            <Text style={styles.verseText}>{item.verse}</Text>
-                        </View>
-                    )}
-                    keyExtractor={(item, index) => index.toString()}
-                    contentContainerStyle={styles.verseContainer}
-                    ListFooterComponent={() => (
-                        <View style={styles.navigationButtonsContainer}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.navigationButton,
-                                    (isFirstChapter && isFirstBook) ? styles.disabledButton : {}
-                                ]}
-                                onPress={handlePreviousChapter}
-                                disabled={isFirstChapter && isFirstBook}
-                            >
-                                <Text style={styles.navigationButtonText}>
-                                    {isFirstChapter && !isFirstBook ? `← ${bookNames[selectedBook - 1]}` : '← Previous'}
-                                </Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[
-                                    styles.navigationButton,
-                                    (isLastChapter && isLastBook) ? styles.disabledButton : {}
-                                ]}
-                                onPress={handleNextChapter}
-                                disabled={isLastChapter && isLastBook}
-                            >
-                                <Text style={styles.navigationButtonText}>
-                                    {isLastChapter && !isLastBook ? `${bookNames[selectedBook + 1]} →` : 'Next →'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                />
-            </View>
-        );
-    };
-
-    const speakVerse = (text: string, onComplete?: () => void) => {
-        console.log('speakVerse called with:', text);
-        Speech.speak(text, {
-            onStart: () => {
-                console.log('Started speaking:', text.substring(0, 30) + '...');
-            },
-            onDone: () => {
-                console.log('Finished speaking current text');
-                // Always call onComplete when verse is done, regardless of pause state
-                onComplete?.();
-            },
-            onError: (error) => {
-                console.error('Speech error:', error);
-                setIsSpeaking(false);
-                setCurrentSpeakingVerse(null);
-            },
-            rate: 0.9,
-            pitch: 1.0,
-            language: 'en-US'
-        });
-    };
-
-    const speakVerses = (verses: string[], startIndex: number = 0, force: boolean = false) => {
-        console.log('speakVerses called with startIndex:', startIndex, 'force:', force);
-        if (!isSpeaking && !force) {
-            console.log('Not speaking and not forced, returning early');
-            return;
-        }
-        
-        setCurrentVerse(startIndex);
-        setCurrentSpeakingVerse(startIndex);
-
-        const verseText = String(verses[startIndex]);
-        const verseToSpeak = `Verse ${startIndex + 1}. ${verseText}`;
-        console.log('Preparing to speak:', verseToSpeak.substring(0, 30) + '...');
-
-        flatListRef.current?.scrollToIndex({
-            index: startIndex,
-            animated: true,
-            viewPosition: 0.5,
-        });
-
-        speakVerse(verseToSpeak, () => {
-            console.log('Verse complete callback');
-            if ((isSpeaking || force) && startIndex + 1 < verses.length) {
-                speakVerses(verses, startIndex + 1, force);
-            } else if (startIndex + 1 >= verses.length) {
-                console.log('Reached end of verses');
-                setIsSpeaking(false);
-                setCurrentSpeakingVerse(null);
-                setCurrentVerse(0);
-            }
-        });
-    };
-
-    const restartSpeech = () => {
-        Speech.stop();
-        if (view === 'verse') {
-            const verses = typedBible[selectedBook].chapters[selectedChapter];
-            speakVerses(verses, 0);
-        }
-    };
-
-    const togglePause = async () => {
-        console.log('togglePause called, current isPaused:', isPaused);
-        if (isPaused) {
-            // Resume by starting current verse again
-            setIsPaused(false);
-            const verses = typedBible[selectedBook].chapters[selectedChapter];
-            speakVerses(verses, currentVerse, true);
-        } else {
-            // Simple pause - just stop speaking
-            setIsPaused(true);
-            await Speech.stop();
-        }
-    };
-
-    const moveToVerse = (direction: 'next' | 'prev') => {
-        const verses = typedBible[selectedBook].chapters[selectedChapter];
-        const newIndex = direction === 'next' ? 
-            Math.min(currentVerse + 1, verses.length - 1) : 
-            Math.max(currentVerse - 1, 0);
-
-        Speech.stop();
-        speakVerses(verses, newIndex);
-    };
-
-    const stopSpeech = () => {
-        console.log('stopSpeech called');
-        Speech.stop();
-        setIsSpeaking(false);
-        setCurrentSpeakingVerse(null);
-        setCurrentVerse(0);
-        setIsPaused(false);
-    };
-
-    const startReading = () => {
-        console.log('startReading called');
-        if (view === 'verse') {
-            const verses = typedBible[selectedBook].chapters[selectedChapter];
-            if (verses.length > 0) {
-                console.log('Starting to read verses:', verses.length);
-                speakVerses(verses, 0, true);
-                setIsSpeaking(true);
-                setIsPaused(false);
-            }
-        }
-    };
-
-    const toggleSpeech = () => {
-        console.log('toggleSpeech called, current isSpeaking:', isSpeaking);
-        if (isSpeaking) {
-            stopSpeech();
-        } else {
-            startReading();
-        }
-    };
-
-    // Clean up speech when component unmounts
-    useEffect(() => {
-        return () => {
-            Speech.stop();
-        };
-    }, []);
-
-    // Stop speech when changing views
-    useEffect(() => {
-        Speech.stop();
-        setIsSpeaking(false);
-        setCurrentSpeakingVerse(null);
-    }, [view, selectedBook, selectedChapter]);
-
-    // Add helper function to get chapter count
-    const getChapterCount = (bookIndex: number) => {
-        return typedBible[bookIndex]?.chapters.length || 0;
-    };
-
-    // Add helper function to get verse count
-    const getVerseCount = (bookIndex: number, chapterIndex: number) => {
-        return typedBible[bookIndex]?.chapters[chapterIndex]?.length || 0;
-    };
-
-    // Add navigation handler
-    const handleQuickNavigation = () => {
-        setSelectedBook(quickNavBook);
-        setSelectedChapter(quickNavChapter - 1);
-        setView('verse');
-        
-        // Wait for state updates and then highlight the verse
-        setTimeout(() => {
-            const verseIndex = quickNavVerse - 1; // Convert to 0-based index
-            setCurrentSpeakingVerse(verseIndex);
-            
-            // Scroll to the verse
-            flatListRef.current?.scrollToIndex({
-                index: verseIndex,
-                animated: true,
-                viewPosition: 0.3,
-            });
-
-            // Remove highlight after 2 seconds
-            setTimeout(() => {
-                setCurrentSpeakingVerse(null);
-            }, 2000);
-        }, 100);
-    };
-
-    // Add Quick Navigation component
-    const QuickNavigation = () => {
-        const chapterCount = getChapterCount(quickNavBook);
-        const verseCount = getVerseCount(quickNavBook, quickNavChapter - 1);
-
-        return (
-            <View style={styles.quickNavContainer}>
-                <Text style={styles.quickNavTitle}>Jump to verse</Text>
-                <View style={styles.quickNavRow}>
-                    <View style={styles.selectContainer}>
-                        <Text style={styles.selectLabel}>Book</Text>
-                        <Picker
-                            selectedValue={quickNavBook}
-                            onValueChange={(itemValue: number) => {
-                                setQuickNavBook(itemValue);
-                                setQuickNavChapter(1);
-                                setQuickNavVerse(1);
-                            }}
-                            style={styles.select}
-                        >
-                            {bookNames.map((book, index) => (
-                                <Picker.Item key={index} label={book} value={index} />
-                            ))}
-                        </Picker>
-                    </View>
-
-                    <View style={styles.selectContainer}>
-                        <Text style={styles.selectLabel}>Chapter</Text>
-                        <Picker
-                            selectedValue={quickNavChapter}
-                            onValueChange={(itemValue: number) => {
-                                setQuickNavChapter(itemValue);
-                                setQuickNavVerse(1);
-                            }}
-                            style={styles.select}
-                        >
-                            {Array.from({ length: chapterCount }, (_, i) => i + 1).map((num) => (
-                                <Picker.Item key={num} label={num.toString()} value={num} />
-                            ))}
-                        </Picker>
-                    </View>
-
-                    <View style={styles.selectContainer}>
-                        <Text style={styles.selectLabel}>Verse</Text>
-                        <Picker
-                            selectedValue={quickNavVerse}
-                            onValueChange={(itemValue: number) => setQuickNavVerse(itemValue)}
-                            style={styles.select}
-                        >
-                            {Array.from({ length: verseCount }, (_, i) => i + 1).map((num) => (
-                                <Picker.Item key={num} label={num.toString()} value={num} />
-                            ))}
-                        </Picker>
-                    </View>
-                </View>
-
-                <TouchableOpacity style={styles.goButton} onPress={handleQuickNavigation}>
-                    <Text style={styles.goButtonText}>Go to Verse</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    };
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle="light-content" backgroundColor="#141414" />
             <View style={styles.container}>
                 <View style={styles.header}>
-                    {view !== 'book' && (
+                    {view !== 'testament' && (
                         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                             <Text style={styles.backButtonText}>← Back</Text>
                         </TouchableOpacity>
@@ -678,8 +733,9 @@ const Bible = () => {
                     )}
                 </View>
 
-                {view === 'book' && <QuickNavigation />}
-                {view === 'book' && renderBookSelection()}
+                {view === 'testament' && renderTestamentSelection()}
+                {view === 'oldTestament' && renderTestamentBooks(true)}
+                {view === 'newTestament' && renderTestamentBooks(false)}
                 {view === 'chapter' && renderChapterSelection()}
                 {view === 'verse' && renderVerseScreen()}
 

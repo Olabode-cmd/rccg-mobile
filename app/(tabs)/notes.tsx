@@ -17,7 +17,7 @@ interface Note {
 const Notes = () => {
     const [notes, setNotes] = useState<Note[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
-    const [currentNote, setCurrentNote] = useState<Partial<Note>>({ id: null, title: '', content: '' });
+    const [currentNote, setCurrentNote] = useState<Partial<Note>>({ id: undefined, title: '', content: '' });
     const [isEditing, setIsEditing] = useState(false);
 
     const colorScheme = useColorScheme();
@@ -64,19 +64,15 @@ const Notes = () => {
         }
 
         try {
-            if (isEditing && currentNote.id !== null) {
+            if (isEditing && currentNote.id !== undefined) {
                 await db.runAsync(
                     'UPDATE notes SET title = ?, content = ? WHERE id = ?',
-                    currentNote.title,
-                    currentNote.content,
-                    currentNote.id
+                    [currentNote.title || '', currentNote.content || '', currentNote.id]
                 );
             } else {
                 await db.runAsync(
                     'INSERT INTO notes (title, content, created_at) VALUES (?, ?, ?)',
-                    currentNote.title,
-                    currentNote.content,
-                    Date.now()
+                    [currentNote.title || '', currentNote.content || '', Date.now()]
                 );
             }
             await loadNotes();
@@ -109,7 +105,7 @@ const Notes = () => {
 
     // MODAL HANDLERS
     const openNewNoteModal = () => {
-        setCurrentNote({ id: null, title: '', content: '' });
+        setCurrentNote({ id: undefined, title: '', content: '' });
         setIsEditing(false);
         setModalVisible(true);
     };
@@ -122,7 +118,7 @@ const Notes = () => {
 
     const closeModal = () => {
         setModalVisible(false);
-        setCurrentNote({ id: null, title: '', content: '' });
+        setCurrentNote({ id: undefined, title: '', content: '' });
     };
 
     const renderNoteItem = ({ item }: { item: Note }) => {
@@ -174,9 +170,9 @@ const Notes = () => {
     );
 
     return (
-        <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={styles.safeArea}>
             <View style={styles.container}>
-                <Text style={[styles.header, { color: colors.text }]}>Notes</Text>
+                <Text style={styles.header}>Notes</Text>
 
                 <FlatList
                     data={notes}
@@ -187,7 +183,7 @@ const Notes = () => {
                 />
 
                 <TouchableOpacity
-                    style={[styles.addButton, { backgroundColor: '#2196F3' }]}
+                    style={styles.addButton}
                     onPress={openNewNoteModal}
                 >
                     <Feather name="plus" size={24} color="white" />
@@ -201,40 +197,40 @@ const Notes = () => {
                 visible={modalVisible}
                 onRequestClose={closeModal}
             >
-                <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+                <SafeAreaView style={styles.safeArea}>
                     <View style={styles.modalHeader}>
                         <TouchableOpacity onPress={closeModal} style={styles.backButton}>
-                            <Feather name="arrow-left" size={24} color="#2196F3" />
+                            <Feather name="arrow-left" size={24} color="#1DB954" />
                         </TouchableOpacity>
 
                         <View style={styles.modalActions}>
-                            {isEditing && (
+                            {isEditing && typeof currentNote.id === 'number' && (
                                 <TouchableOpacity
                                     style={styles.deleteButtonModal}
-                                    onPress={() => deleteNote(currentNote.id)}
+                                    onPress={() => currentNote.id && deleteNote(currentNote.id)}
                                 >
                                     <Feather name="trash-2" size={24} color="#FF6B6B" />
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity style={styles.saveButton} onPress={saveNote}>
-                                <Feather name="check" size={24} color="#2196F3" />
+                                <Feather name="check" size={24} color="#1DB954" />
                             </TouchableOpacity>
                         </View>
                     </View>
 
                     <View style={styles.editorContainer}>
                         <TextInput
-                            style={[styles.titleInput, { color: colors.text }]}
+                            style={styles.titleInput}
                             placeholder="Title"
-                            placeholderTextColor={colors.text + '80'}
+                            placeholderTextColor="#787878"
                             value={currentNote.title}
                             onChangeText={(text) => setCurrentNote({ ...currentNote, title: text })}
                         />
 
                         <TextInput
-                            style={[styles.contentInput, { color: colors.text }]}
+                            style={styles.contentInput}
                             placeholder="Start typing..."
-                            placeholderTextColor={colors.text + '80'}
+                            placeholderTextColor="#787878"
                             multiline
                             value={currentNote.content}
                             onChangeText={(text) => setCurrentNote({ ...currentNote, content: text })}
@@ -243,7 +239,7 @@ const Notes = () => {
                 </SafeAreaView>
             </Modal>
 
-            <StatusBar style='dark' />
+            <StatusBar style="dark" />
         </SafeAreaView>
     );
 };
@@ -251,6 +247,7 @@ const Notes = () => {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
+        backgroundColor: '#FFFFFF',
         paddingTop: 14,
     },
     container: {
@@ -258,10 +255,12 @@ const styles = StyleSheet.create({
         padding: 16,
     },
     header: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        marginBottom: 20,
+        fontSize: 34,
+        fontWeight: '700',
+        marginBottom: 24,
         marginTop: 12,
+        color: '#181818',
+        paddingHorizontal: 8,
     },
     notesList: {
         flexGrow: 1,
@@ -275,33 +274,25 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 16,
+        color: '#787878',
         opacity: 0.7,
     },
-    // noteItem: {
-    //     flexDirection: 'row',
-    //     borderRadius: 10,
-    //     padding: 16,
-    //     marginBottom: 12,
-    //     elevation: 2,
-    //     shadowColor: '#000',
-    //     shadowOffset: { width: 0, height: 1 },
-    //     shadowOpacity: 0.2,
-    //     shadowRadius: 2,
-    // },
     noteItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#f0f8fc',
-        borderColor: 'transparent',
-        borderRadius: 32,
-        paddingHorizontal: 22,
-        paddingVertical: 12,
+        backgroundColor: '#F8F8F8',
+        borderRadius: 8,
+        paddingHorizontal: 20,
+        paddingVertical: 16,
         marginBottom: 12,
+        marginHorizontal: 8,
         // shadowColor: '#000',
-        // shadowOffset: { width: 0, height: 1 },
-        // shadowOpacity: 0.05,
-        // shadowRadius: 2,
-        elevation: 1,
+        // shadowOffset: { width: 0, height: 2 },
+        // shadowOpacity: 0.06,
+        // shadowRadius: 4,
+        // elevation: 2,
+        borderWidth: 1,
+        borderColor: '#EFEFEF',
     },
     noteContent: {
         flex: 1,
@@ -310,8 +301,8 @@ const styles = StyleSheet.create({
     noteTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#2D3748',
-        marginBottom: 4,
+        color: '#181818',
+        marginBottom: 6,
     },
     noteDetailsContainer: {
         flexDirection: 'column',
@@ -323,20 +314,27 @@ const styles = StyleSheet.create({
     },
     dateText: {
         fontSize: 12,
-        color: '#7B8794',
+        color: '#787878',
         marginLeft: 4,
     },
     notePreview: {
         fontSize: 14,
-        color: '#4A5568',
+        color: '#585858',
     },
     deleteButton: {
         justifyContent: 'center',
         alignItems: 'center',
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#FFF',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#EFEFEF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 2,
+        elevation: 1,
     },
     addButton: {
         position: 'absolute',
@@ -345,19 +343,23 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
+        backgroundColor: '#0a7ea4',
         justifyContent: 'center',
         alignItems: 'center',
-        elevation: 5,
+        elevation: 8,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#EFEFEF',
     },
     backButton: {
         padding: 8,
@@ -375,18 +377,29 @@ const styles = StyleSheet.create({
     editorContainer: {
         flex: 1,
         padding: 16,
+        backgroundColor: '#FFFFFF',
     },
     titleInput: {
         fontSize: 24,
         fontWeight: 'bold',
         marginBottom: 16,
-        padding: 8,
+        padding: 12,
+        color: '#181818',
+        backgroundColor: '#F8F8F8',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#EFEFEF',
     },
     contentInput: {
         flex: 1,
         fontSize: 16,
         textAlignVertical: 'top',
-        padding: 8,
+        padding: 12,
+        color: '#181818',
+        backgroundColor: '#F8F8F8',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#EFEFEF',
     },
 });
 

@@ -1,7 +1,9 @@
-import React from 'react';
-import { Image, StyleSheet, Platform, View, Text, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Image, StyleSheet, Platform, View, Text, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
+import OtherPrograms from '@/components/OtherPrograms';
+import HomeHymns from '@/components/HomeHymns';
 
 // Hardcoded image import
 import OpenHeavensImg from "@/assets/images/bible-img.jpg";
@@ -20,11 +22,7 @@ interface Devotional {
 interface Program {
   id: number;
   title: string;
-  theme: string;
-  preview: string;
-  schedule?: string;
-  icon: string;
-  color: string;
+  created_at: string;
 }
 
 const todaysDate = new Date().toLocaleDateString('en-US', {
@@ -44,64 +42,36 @@ const devotionalData = {
   author: "Pastor E.A. Adeboye"
 };
 
-const programsData: Program[] = [
-  {
-    id: 2,
-    title: "Sunday School",
-    theme: "Faith and Works",
-    preview: "Understanding the balance between faith and action in our Christian walk.",
-    schedule: "Sundays, 9:00 AM",
-    icon: "book-open",
-    color: "#4C51BF" // Indigo
-  },
-  {
-    id: 3,
-    title: "Bible Study",
-    theme: "The Book of Romans",
-    preview: "Exploring Paul's theological masterpiece on salvation and grace.",
-    schedule: "Wednesdays, 6:00 PM",
-    icon: "book",
-    color: "#2B6CB0" // Blue
-  },
-  {
-    id: 4,
-    title: "Prayer Vigil",
-    theme: "Night of Divine Encounter",
-    preview: "Preparing our hearts for a night of powerful prayer and supplication.",
-    schedule: "Last Friday, 10:00 PM",
-    icon: "moon",
-    color: "#6B46C1" // Purple
-  },
-  {
-    id: 5,
-    title: "Youth Fellowship",
-    theme: "Purpose Driven Life",
-    preview: "Discovering God's unique purpose for your life as a young believer.",
-    schedule: "Saturdays, 4:00 PM",
-    icon: "users",
-    color: "#2F855A" // Green
-  },
-  {
-    id: 6,
-    title: "Marriage Counseling",
-    theme: "Building a Godly Home",
-    preview: "Biblical principles for maintaining a Christ-centered marriage.",
-    schedule: "By Appointment",
-    icon: "heart",
-    color: "#C53030" // Red
-  },
-  {
-    id: 7,
-    title: "Choir Practice",
-    theme: "Worship as Lifestyle",
-    preview: "Understanding that worship goes beyond Sunday service.",
-    schedule: "Thursdays, 5:30 PM",
-    icon: "music",
-    color: "#B7791F" // Yellow
-  }
-];
-
 const HomeScreen = () => {
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // console.log(process.env.EXPO_PUBLIC_API_URL);
+
+  useEffect(() => {
+    fetchPrograms();
+  }, []);
+
+  const fetchPrograms = async () => {
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/programs`);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data = await response.json();
+      setPrograms(data);
+    } catch (error) {
+      console.error('Error fetching programs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cleanTitle = (title: string) => {
+    // Remove the WebKit form boundary text that appears in some titles
+    return title.split('\\r\\n')[0].trim();
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -119,7 +89,6 @@ const HomeScreen = () => {
         <View style={styles.featuredSection}>
           <Text style={styles.sectionTitle}>Today's Devotional</Text>
           <TouchableOpacity style={styles.featuredCard}>
-            {/* Hardcoded image */}
             <Image
               source={OpenHeavensImg}
               style={styles.featuredImage}
@@ -144,34 +113,11 @@ const HomeScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Other Programs List - redesigned without images */}
-        <View style={styles.programsSection}>
-          <Text style={styles.sectionTitle}>Other Programs</Text>
-          <View style={styles.programsList}>
-            {programsData.map((program) => (
-              <TouchableOpacity
-                key={program.id}
-                style={styles.programCard}
-              >
-                <View style={[styles.iconContainer, { backgroundColor: program.color }]}>
-                  <Feather name={program.icon} size={20} color="#FFFFFF" />
-                </View>
-                <View style={styles.programContent}>
-                  <View style={styles.programHeader}>
-                    <Text style={styles.programTitle}>{program.title}</Text>
-                    {/* {program.schedule && (
-                      <Text style={styles.scheduleText}>
-                        {program.schedule}
-                      </Text>
-                    )} */}
-                  </View>
-                  <Text style={styles.programTheme}>{program.theme}</Text>
-                </View>
-                <Feather name="chevron-right" size={20} color="#CBD5E0" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        {/* Programs List */}
+        <OtherPrograms programs={programs} loading={loading} />
+
+        {/* Hymns Section */}
+        <HomeHymns />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Grow your faith daily with us</Text>
@@ -330,10 +276,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1E293B',
   },
-  programTheme: {
-    fontSize: 14,
-    color: '#64748B',
-  },
   scheduleText: {
     fontSize: 12,
     color: '#94A3B8',
@@ -345,7 +287,10 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 14,
     color: '#94A3B8',
-  }
+  },
+  loader: {
+    marginVertical: 20,
+  },
 });
 
 export default HomeScreen;
